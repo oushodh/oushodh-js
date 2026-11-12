@@ -27,6 +27,8 @@ Or with pnpm:
 pnpm add @oushodh/sdk
 ```
 
+The same code is also on npm as `oushodh`. If you install that name, import from `"oushodh"` instead.
+
 ## Quickstart
 
 Make a key on the Keys page of the member portal. A key starts with `oush_` and is shown once. Keep it on your
