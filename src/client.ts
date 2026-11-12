@@ -1,9 +1,10 @@
-import { ConnectionError, errorFor, OushodhError, RateLimitError, ServerError, TimeoutError } from "./errors.js";
-import type { Medicine, MedicineDetail, Meta, Page, SearchResult } from "./types.js";
+import { OushodhError } from "./errors/index.js";
+import { type FetchLike, Transport } from "./http/transport.js";
+import type { Medicine, MedicineDetail, Meta, Page, SearchResult } from "./models/index.js";
 
 export const VERSION = "0.1.0";
 
-export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
+export type { FetchLike };
 
 export interface OushodhOptions {
   /** An API key from the member portal. Defaults to the `OUSHODH_API_KEY` environment variable. */
@@ -36,8 +37,6 @@ export interface SearchParams {
 
 type Query = Record<string, string | number | undefined>;
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 function envKey(): string | undefined {
   const process = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
 
@@ -48,8 +47,7 @@ export class Oushodh {
   readonly baseUrl: string;
   readonly timeout: number;
   readonly maxRetries: number;
-  readonly #apiKey: string;
-  readonly #fetch: FetchLike;
+  readonly #transport: Transport;
 
   constructor(options: OushodhOptions = {}) {
     const apiKey = options.apiKey ?? envKey();
@@ -58,11 +56,16 @@ export class Oushodh {
       throw new OushodhError("No API key. Pass apiKey or set the OUSHODH_API_KEY environment variable.", null, null);
     }
 
-    this.#apiKey = apiKey;
-    this.#fetch = options.fetch ?? ((input, init) => fetch(input, init));
     this.baseUrl = (options.baseUrl ?? "https://api.oushodh.dev").replace(/\/+$/, "");
     this.timeout = options.timeout ?? 30_000;
     this.maxRetries = options.maxRetries ?? 2;
+    this.#transport = new Transport({
+      apiKey,
+      fetch: options.fetch ?? ((input, init) => fetch(input, init)),
+      timeout: this.timeout,
+      maxRetries: this.maxRetries,
+      userAgent: `oushodh-js/${VERSION}`,
+    });
   }
 
   /** The account the key belongs to. Use it to check that a key works. */
@@ -114,7 +117,7 @@ export class Oushodh {
 
   /** The bytes of a picture. The request carries no key. */
   async getImage(file: string): Promise<Uint8Array> {
-    const buffer = await this.#request(this.imageUrl(file), false, (response) => response.arrayBuffer());
+    const buffer = await this.#transport.get(this.imageUrl(file), false, (response) => response.arrayBuffer());
 
     return new Uint8Array(buffer);
   }
@@ -131,88 +134,6 @@ export class Oushodh {
     const qs = search.toString();
     const url = `${this.baseUrl}${path}${qs ? `?${qs}` : ""}`;
 
-    return this.#request(url, true, (response) => response.json() as Promise<T>);
-  }
-
-  async #request<T>(url: string, auth: boolean, read: (response: Response) => Promise<T>): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await this.#send(url, auth, read);
-      } catch (error) {
-        const delay = this.#retryDelay(error, attempt);
-
-        if (delay === null) {
-          throw error;
-        }
-
-        await sleep(delay);
-      }
-    }
-  }
-
-  async #send<T>(url: string, auth: boolean, read: (response: Response) => Promise<T>): Promise<T> {
-    const headers: Record<string, string> = { "User-Agent": `oushodh-js/${VERSION}` };
-
-    if (auth) {
-      headers.Authorization = `Bearer ${this.#apiKey}`;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeout);
-    let response: Response;
-    let body: unknown;
-
-    try {
-      response = await this.#fetch(url, { method: "GET", headers, signal: controller.signal });
-
-      if (response.ok) {
-        return await read(response);
-      }
-
-      body = await response.json().catch(() => null);
-    } catch (cause) {
-      if (controller.signal.aborted) {
-        throw new TimeoutError(`The request timed out after ${this.timeout} ms`, { cause });
-      }
-
-      throw new ConnectionError("The request could not reach the Oushodh API", { cause });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    const retryAfter = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
-
-    throw errorFor(response.status, body, Number.isNaN(retryAfter) ? null : retryAfter);
-  }
-
-  #retryDelay(error: unknown, attempt: number): number | null {
-    if (attempt >= this.maxRetries) {
-      return null;
-    }
-
-    if (error instanceof RateLimitError) {
-      // quota_exceeded's Retry-After runs to the next month, so waiting is never right.
-      if (error.code === "quota_exceeded") {
-        return null;
-      }
-
-      if (error.retryAfter !== null) {
-        return error.retryAfter * 1000;
-      }
-
-      return this.#backoff(attempt);
-    }
-
-    if (error instanceof ServerError || error instanceof ConnectionError) {
-      return this.#backoff(attempt);
-    }
-
-    return null;
-  }
-
-  #backoff(attempt: number): number {
-    const base = Math.min(8000, 500 * 2 ** attempt);
-
-    return base / 2 + Math.random() * (base / 2);
+    return this.#transport.get(url, true, (response) => response.json() as Promise<T>);
   }
 }
