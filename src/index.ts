@@ -1,5 +1,6 @@
 export type { FetchLike, ListMedicinesParams, OushodhOptions, SearchParams } from "./client.js";
 export { Oushodh, VERSION } from "./client.js";
+export type { ErrorCode } from "./errors/index.js";
 export {
   AuthenticationError,
   BadRequestError,
@@ -10,9 +11,8 @@ export {
   RateLimitError,
   ServerError,
   TimeoutError,
-} from "./errors.js";
+} from "./errors/index.js";
 export type {
-  ErrorCode,
   Medicine,
   MedicineDetail,
   MedicineType,
@@ -26,4 +26,4 @@ export type {
   SizePrice,
   StripPrice,
   UnitPrice,
-} from "./types.js";
+} from "./models/index.js";
