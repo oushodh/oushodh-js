@@ -4,6 +4,7 @@ The official JavaScript and TypeScript client for the Oushodh API.
 
 [![CI](https://github.com/oushodh/oushodh-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/oushodh/oushodh-js/actions/workflows/ci.yml)
 [![Licence: MIT](https://img.shields.io/github/license/oushodh/oushodh-js)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@oushodh/sdk)](https://www.npmjs.com/package/@oushodh/sdk)
 [![Node.js 20+](https://img.shields.io/badge/node-20%2B-5fa04e)](https://nodejs.org/)
 
 ## What Oushodh is
@@ -16,25 +17,15 @@ The SDK is written in TypeScript and ships as ESM with types. It has no runtime 
 
 ## Install
 
-Install it from GitHub with pnpm:
-
 ```sh
-pnpm add github:oushodh/oushodh-js
+npm install @oushodh/sdk
 ```
 
-The package builds itself when it installs from GitHub, and pnpm asks before it runs a build. The first time, pnpm
-stops and prints an `allowBuilds` entry for your `pnpm-workspace.yaml`. Add that entry, then run the same command
-again.
-
-With npm:
+Or with pnpm:
 
 ```sh
-npm install github:oushodh/oushodh-js
+pnpm add @oushodh/sdk
 ```
-
-The build runs with pnpm, so npm needs `pnpm` on your `PATH`.
-
-Install from npm is coming soon.
 
 ## Quickstart
 
@@ -46,7 +37,7 @@ export OUSHODH_API_KEY=oush_...
 ```
 
 ```ts
-import { Oushodh } from "oushodh";
+import { Oushodh } from "@oushodh/sdk";
 
 const oushodh = new Oushodh(); // reads OUSHODH_API_KEY
 
@@ -181,7 +172,7 @@ Match on the class or on `code`, never on `message`: the message is for people a
 `code` is `null` and the message is `HTTP <status>`. The key never appears in an error message or a URL.
 
 ```ts
-import { NotFoundError, PlanError } from "oushodh";
+import { NotFoundError, PlanError } from "@oushodh/sdk";
 
 try {
   await oushodh.getMedicine("MED-999999");

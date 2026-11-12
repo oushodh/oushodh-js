@@ -1,5 +1,5 @@
 {
-  "name": "oushodh",
+  "name": "@oushodh/sdk",
   "version": "0.1.0",
   "description": "JavaScript and TypeScript SDK for the Oushodh medicine data API",
   "keywords": [
