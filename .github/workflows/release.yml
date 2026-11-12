@@ -28,3 +28,5 @@ jobs:
         run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
       - run: npm install -g npm@latest
       - run: npm publish --access public
+      # The same build again under the short alias name.
+      - run: npm pkg set name=oushodh && npm publish --access public
