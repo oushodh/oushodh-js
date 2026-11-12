@@ -1,93 +1,109 @@
-# Oushodh for JavaScript and TypeScript
+# Oushodh JavaScript SDK
 
-The official SDK for the [Oushodh API](https://oushodh.dev/docs): medicine data for Bangladesh, checked against the DGDA register.
+The official JavaScript and TypeScript client for the Oushodh API.
 
-- Written in TypeScript, shipped as ESM with types.
-- Runs on Node.js 20 or later, Bun, Deno, Cloudflare Workers and browsers.
-- No runtime dependencies. It uses the platform's `fetch`.
+[![CI](https://github.com/oushodh/oushodh-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/oushodh/oushodh-js/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/github/license/oushodh/oushodh-js)](LICENSE)
+[![Node.js 20+](https://img.shields.io/badge/node-20%2B-5fa04e)](https://nodejs.org/)
 
-Full API reference: <https://oushodh.dev/docs>.
+## What Oushodh is
+
+Oushodh serves Bangladesh medicine data over a REST API: brands, generics, prices and makers. Make a key in the member
+portal at [app.oushodh.dev](https://app.oushodh.dev), and read the docs at [oushodh.dev/docs](https://oushodh.dev/docs).
+
+The SDK is written in TypeScript and ships as ESM with types. It has no runtime dependencies: it uses the platform's
+`fetch`. It needs Node.js 20 or newer, or another runtime with `fetch`.
 
 ## Install
 
-Install from GitHub for now:
+Install it from GitHub with pnpm:
 
 ```sh
 pnpm add github:oushodh/oushodh-js
 ```
 
-The repository is private, so your GitHub account needs access to it.
+The package builds itself when it installs from GitHub, and pnpm asks before it runs a build. The first time, pnpm
+stops and prints an `allowBuilds` entry for your `pnpm-workspace.yaml`. Add that entry, then run the same command
+again.
 
-The package builds itself when it installs from GitHub. pnpm blocks that build until you allow it. It prints the line to add to `allowBuilds` in your `pnpm-workspace.yaml`, with the commit it installed:
-
-```yaml
-allowBuilds:
-  "oushodh@git+https://github.com/oushodh/oushodh-js.git#<commit>": true
-```
-
-Then run `pnpm add github:oushodh/oushodh-js` again.
-
-With npm, run `npm install github:oushodh/oushodh-js`.
-
-From npm (coming soon):
+With npm:
 
 ```sh
-pnpm add oushodh
+npm install github:oushodh/oushodh-js
 ```
+
+The build runs with pnpm, so npm needs `pnpm` on your `PATH`.
+
+Install from npm is coming soon.
 
 ## Quickstart
 
-Make a key on the Keys page of the member portal at <https://app.oushodh.dev>. A key starts with `oush_` and is shown once.
+Make a key on the Keys page of the member portal. A key starts with `oush_` and is shown once. Keep it on your
+server: never put it in a web page, a mobile app or a public repository.
 
-Keep the key on your server. Never put it in a web page, a mobile app or a public repository.
+```sh
+export OUSHODH_API_KEY=oush_...
+```
 
 ```ts
 import { Oushodh } from "oushodh";
 
-const oushodh = new Oushodh({ apiKey: process.env.OUSHODH_API_KEY });
+const oushodh = new Oushodh(); // reads OUSHODH_API_KEY
 
-const meta = await oushodh.meta();
+const result = await oushodh.search("paracetamol", { limit: 5 });
 
-console.log(meta.client, meta.id_profile, meta.medicines);
+for (const medicine of result.items) {
+  console.log(medicine.id, medicine.product_name);
+}
+
+const medicine = await oushodh.getMedicine("MED-012933");
+
+console.log(medicine.product_name, medicine.prices.unit?.amount, "BDT a unit");
 ```
 
-With no `apiKey`, the client reads the `OUSHODH_API_KEY` environment variable. With no key at all, the constructor throws.
+`new Oushodh({ apiKey: "oush_..." })` takes the key directly. With no key and no `OUSHODH_API_KEY`, the constructor
+throws an `OushodhError`.
 
-### Options
+| Method                                              | Route                          | Returns                          |
+| --------------------------------------------------- | ------------------------------ | -------------------------------- |
+| `meta()`                                            | `GET /v1/meta`                 | `Promise<Meta>`                  |
+| `listMedicines({ limit, cursor, updatedSince, q })` | `GET /v1/medicines`            | `Promise<Page>`                  |
+| `medicines({ limit, cursor, updatedSince, q })`     | `GET /v1/medicines`, each page | `AsyncGenerator<Medicine>`       |
+| `search(q, { limit })`                              | `GET /v1/medicines/search`     | `Promise<SearchResult>`          |
+| `getMedicine(ref)`                                  | `GET /v1/medicines/{ref}`      | `Promise<MedicineDetail>`        |
+| `imageUrl(file)`                                    | none                           | the picture's address            |
+| `getImage(file)`                                    | `GET /v1/images/{file}`        | `Promise<Uint8Array>`, the bytes |
 
-| Option       | Default                   | What it does                                      |
-| ------------ | ------------------------- | ------------------------------------------------- |
-| `apiKey`     | `OUSHODH_API_KEY`         | Your API key                                      |
-| `baseUrl`    | `https://api.oushodh.dev` | Where the API lives                               |
-| `timeout`    | `30000`                   | Milliseconds before one attempt gives up          |
-| `maxRetries` | `2`                       | Retries after a `429`, a `5xx` or a network error |
-| `fetch`      | the platform's `fetch`    | Another `fetch` to use, for tests or a proxy      |
+`meta()` names your account and counts the medicines your plan reads. Call it to check that a key works.
 
-## Medicines
+`getMedicine()` takes an ID in any profile, an old ID or a UUID. The answer always carries the medicine's current ID,
+and its `monograph`.
 
-```ts
-const page = await oushodh.listMedicines({ limit: 100 });
-
-console.log(page.total, page.items.length, page.next);
-
-const napa = await oushodh.getMedicine("MED-012933");
-
-console.log(napa.product_name, napa.prices.unit?.amount, napa.monograph?.indications);
-
-const hits = await oushodh.search("napa 500", { limit: 10 });
-
-console.log(hits.total, hits.items[0]?.product_name);
-```
-
-- `listMedicines()` returns one page: `items`, `next` and `total`. It takes `limit` (1 to 500), `cursor`, `updatedSince` and `q`.
-- `getMedicine(ref)` takes an ID in any profile, an old ID or a UUID. The answer carries the medicine's current ID in your profile, and its `monograph`.
-- `search(q)` returns the best matches for a person typing a name, best match first. It takes `limit` (1 to 50) and has no cursor.
-
-Every value no source gives is `null`. The API only gains fields in `/v1`, and the SDK keeps fields it does not know.
+Fields keep their API names, such as `product_name`. A value no source gives is `null`. The API only gains fields in
+`/v1`, and the SDK keeps fields it does not know.
 
 ## Paging
 
-`medicines()` pages to the end for you. Use it with `for await`:
+`listMedicines()` returns one page: `items`, `next` and `total`. Pass `next` back as `cursor` for the next page.
+`next` is `null` on the last page. `limit` is 1 to 500, and 100 when you leave it out.
+
+```ts
+let page = await oushodh.listMedicines({ limit: 500 });
+
+while (true) {
+  for (const medicine of page.items) {
+    // ...
+  }
+
+  if (page.next === null) {
+    break;
+  }
+
+  page = await oushodh.listMedicines({ limit: 500, cursor: page.next });
+}
+```
+
+`medicines()` does the same for you. Use it with `for await`: it yields every medicine and follows `next` to the end.
 
 ```ts
 for await (const medicine of oushodh.medicines({ limit: 500 })) {
@@ -95,114 +111,138 @@ for await (const medicine of oushodh.medicines({ limit: 500 })) {
 }
 ```
 
-It takes the same options as `listMedicines()` and follows `next` until it is `null`.
+Search has no cursor. To page through every match, use `medicines({ q })`.
 
-## Sync
+## Keeping a copy in sync
 
-Copy the whole database once, then fetch only what changed.
+Copy every medicine once, then fetch only what changed.
 
-1. The first sync pages through every medicine and keeps the `last_updated` of the newest one.
-2. Each later sync passes that time as `updatedSince` and pages to the end.
+1. The first sync pages through every medicine and keeps the newest `last_updated`.
+2. Each later sync passes that time as `updatedSince` and pages to the end. It gets the medicines changed at or after
+   that time, oldest change first.
 
 ```ts
-let since: string | undefined = await loadLastSync();
+let since: string | undefined = await loadLastSync(); // undefined on the first sync
 
 for await (const medicine of oushodh.medicines({ limit: 500, updatedSince: since })) {
-  await save(medicine.uuid, medicine);
+  await saveMedicine(medicine.uuid, medicine);
 
-  if (!since || medicine.last_updated > since) {
+  if (since === undefined || medicine.last_updated > since) {
     since = medicine.last_updated;
   }
 }
 
-await storeLastSync(since);
+await saveLastSync(since);
 ```
 
-- Write the time like `2026-11-08T09:30:00Z`.
-- "At or after" means a change in the same second is never missed. The medicine that set the time comes back once more.
-- Store the `uuid` as the key: it never changes. Show the `id` to people.
-- Medicines are never deleted, and IDs are never reused.
+- `updatedSince` is a string in UTC, to the whole second, such as `2026-11-08T09:30:00Z`. The `last_updated` of a
+  medicine is already in that form.
+- "At or after" means a change in the same second is never missed. The medicine that set the time comes back once
+  more, so save by `uuid`.
+- Store `uuid` as the key: it never changes. Show `id` to people.
+- Medicines are never deleted and IDs are never reused, so a sync never has to remove one.
+
+## Images
+
+`product_image` is the address of the medicine's picture, or `null`. `images` lists every picture, `product_image`
+first. An address under `/v1/images/` is a copy Oushodh keeps. It needs no key, so an `<img>` tag can show it, and it
+never changes. Any other address belongs to the source, and it can move or be removed.
+
+`getImage()` takes the file name, not the whole address, and sends no key:
+
+```ts
+const url = medicine.product_image;
+
+if (url !== null && url.startsWith(oushodh.imageUrl(""))) {
+  const jpeg = await oushodh.getImage(url.slice(url.lastIndexOf("/") + 1));
+}
+```
+
+`imageUrl(file)` builds the address of a file, such as
+`50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c.jpg`.
 
 ## Errors
 
-Every error extends `OushodhError`. It carries `status` (the HTTP status), `code` (from the API) and `message`.
+Every error extends `OushodhError`. It has `status` (the HTTP status), `code` (the API's error code) and `message`.
+Match on the class or on `code`, never on `message`: the message is for people and may change.
 
-Match on the class or on `code`, never on `message`. The message is for people and may change.
+| Class                 | Status | `code`                             |
+| --------------------- | ------ | ---------------------------------- |
+| `BadRequestError`     | 400    | `bad_request`                      |
+| `AuthenticationError` | 401    | `unauthorized`                     |
+| `PlanError`           | 403    | `plan_expired` or `plan_limit`     |
+| `NotFoundError`       | 404    | `not_found`                        |
+| `RateLimitError`      | 429    | `rate_limited` or `quota_exceeded` |
+| `ServerError`         | 5xx    | `internal`                         |
+| `ConnectionError`     | none   | none: the network failed           |
+| `TimeoutError`        | none   | none: the attempt timed out        |
 
-| Class                 | Status | `code`                           |
-| --------------------- | ------ | -------------------------------- |
-| `BadRequestError`     | 400    | `bad_request`                    |
-| `AuthenticationError` | 401    | `unauthorized`                   |
-| `PlanError`           | 403    | `plan_expired`, `plan_limit`     |
-| `NotFoundError`       | 404    | `not_found`                      |
-| `RateLimitError`      | 429    | `rate_limited`, `quota_exceeded` |
-| `ServerError`         | 5xx    | `internal`                       |
-| `ConnectionError`     | none   | none: the network failed         |
-| `TimeoutError`        | none   | none: the attempt timed out      |
-
-`TimeoutError` extends `ConnectionError`. Both have `status` and `code` set to `null`.
+`TimeoutError` extends `ConnectionError`. Both have `status` and `code` set to `null`. When an error body is not JSON,
+`code` is `null` and the message is `HTTP <status>`. The key never appears in an error message or a URL.
 
 ```ts
-import { NotFoundError, PlanError, RateLimitError } from "oushodh";
+import { NotFoundError, PlanError } from "oushodh";
 
 try {
   await oushodh.getMedicine("MED-999999");
 } catch (error) {
   if (error instanceof NotFoundError) {
-    console.log("No medicine has that ID");
+    // No medicine has that ID.
   } else if (error instanceof PlanError && error.code === "plan_limit") {
-    console.log("Upgrade your plan to read this medicine");
-  } else if (error instanceof RateLimitError) {
-    console.log(`Try again in ${error.retryAfter} seconds`);
+    // The medicine is beyond the medicines your plan reads.
   } else {
     throw error;
   }
 }
 ```
 
-The SDK never puts your key in an error message or a URL.
+## Retries and rate limits
 
-## Rate limits
+Your plan sets how many requests each key may make in a minute (60 a minute on Developer). It also sets how many
+requests your account may make in a month. See [Rate limits](https://oushodh.dev/docs/rate-limits).
 
-Your plan sets how many requests each key may make in a minute: 60 on the smallest plan. It also sets how many requests your account may make in a month.
+- Over the minute's limit, the API answers `429 rate_limited`. The `Retry-After` header says how many seconds to wait.
+  The client waits that long and tries again, up to `maxRetries` times. After that it throws a `RateLimitError` with
+  the seconds in `retryAfter`.
+- When the month's requests are used up, the API answers `429 quota_exceeded` until the next month. The client never
+  retries it. It throws a `RateLimitError` at once, and `retryAfter` counts the seconds to the next month.
+- After a `5xx`, a network error or a timeout, the client backs off and tries again, up to `maxRetries` times. Each
+  wait is about twice the last, with a random part, and at most 8 seconds.
+- The client never retries a `400`, `401`, `403` or `404`: the same request gets the same answer.
 
-- Over the minute's limit, the API answers `429 rate_limited`. The SDK waits the seconds in `Retry-After`, then tries again.
-- When the month's requests are used up, the API answers `429 quota_exceeded` until the next month. The SDK does not retry it, because `Retry-After` counts the seconds to the next month. Read `error.retryAfter` to see how long that is.
-- After a `5xx` or a network error, the SDK waits a short, growing time and tries again.
-- It never retries a `400`, `401`, `403` or `404`: the same request gets the same answer.
-- It retries at most `maxRetries` times. Set `maxRetries: 0` to turn retries off.
-
-Every route is a GET, so a retry is always safe.
+Every route is a `GET`, so a retry is always safe. Set `maxRetries: 0` to turn retries off.
 
 ## Plan limits
 
-Some plans read only the first medicines, in the order of their permanent number. `meta().medicines` is the number your plan reads.
+Developer reads the first 5,000 medicines and Team the first 20,000, in the order of their permanent number. Agency
+and Custom read all of them.
 
-Lists and search leave out the medicines beyond your plan's number. A lookup by ID of such a medicine throws `PlanError` with `code` `plan_limit`.
+Lists and search leave out the medicines beyond your plan's number. A lookup by ID of such a medicine answers
+`403 plan_limit`: the client throws a `PlanError` with `code` `plan_limit`. An account with no active plan gets
+`403 plan_expired` on every call.
 
-An account with no active plan gets `PlanError` with `code` `plan_expired` on every call.
+## Configuration
 
-## Images
-
-`product_image` is the address of a medicine's picture, and `images` lists every picture. A picture that Oushodh keeps lives at `/v1/images/<sha256>.jpg`.
+Pass options to the constructor:
 
 ```ts
-const file = "50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c.jpg";
-
-const url = oushodh.imageUrl(file);
-const bytes = await oushodh.getImage(file);
+const oushodh = new Oushodh({ apiKey: "oush_...", timeout: 10_000, maxRetries: 3 });
 ```
 
-Pictures need no key, so an `<img>` tag can show `imageUrl()` directly. `getImage()` returns the bytes as a `Uint8Array` and sends no key. A picture never changes, so you can cache it for a year.
+| Option       | Default                   | What it does                                                    |
+| ------------ | ------------------------- | --------------------------------------------------------------- |
+| `apiKey`     | `OUSHODH_API_KEY`         | Your API key.                                                   |
+| `baseUrl`    | `https://api.oushodh.dev` | Where the API is.                                               |
+| `timeout`    | `30000`                   | Milliseconds before one attempt gives up.                       |
+| `maxRetries` | `2`                       | Retries after a `429 rate_limited`, a `5xx` or a network error. |
+| `fetch`      | the platform's `fetch`    | Another `fetch` to use, for tests or a proxy.                   |
 
-## Testing your code
-
-Pass your own `fetch` to answer requests without the network:
+In your own tests, pass a `fetch` that answers without the network:
 
 ```ts
 const oushodh = new Oushodh({
   apiKey: "oush_test_123",
-  fetch: async () => Response.json({ client: "test", id_profile: "default", medicines: 0, last_import: null }),
+  fetch: async () => Response.json({ client: "acme", id_profile: "default", medicines: 1, last_import: null }),
 });
 ```
 
@@ -216,6 +256,9 @@ pnpm test
 pnpm build
 ```
 
-## License
+`pnpm lint` runs Biome, `pnpm typecheck` runs TypeScript and `pnpm test` runs Vitest. The tests pass their own
+`fetch`. They never call the API.
 
-MIT. See [LICENSE](LICENSE).
+## Licence
+
+MIT. Copyright Oushodh. See [LICENSE](LICENSE).
