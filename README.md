@@ -18,6 +18,17 @@ pnpm add github:oushodh/oushodh-js
 
 The repository is private, so your GitHub account needs access to it.
 
+The package builds itself when it installs from GitHub. pnpm blocks that build until you allow it. It prints the line to add to `allowBuilds` in your `pnpm-workspace.yaml`, with the commit it installed:
+
+```yaml
+allowBuilds:
+  "oushodh@git+https://github.com/oushodh/oushodh-js.git#<commit>": true
+```
+
+Then run `pnpm add github:oushodh/oushodh-js` again.
+
+With npm, run `npm install github:oushodh/oushodh-js`.
+
 From npm (coming soon):
 
 ```sh
