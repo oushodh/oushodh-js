@@ -1,0 +1,51 @@
+{
+  "name": "oushodh",
+  "version": "0.1.0",
+  "description": "JavaScript and TypeScript SDK for the Oushodh medicine data API",
+  "keywords": [
+    "oushodh",
+    "medicine",
+    "bangladesh",
+    "dgda",
+    "api",
+    "sdk"
+  ],
+  "homepage": "https://oushodh.dev/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oushodh/oushodh-js.git"
+  },
+  "license": "MIT",
+  "author": "Oushodh",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "prepare": "pnpm run build"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
